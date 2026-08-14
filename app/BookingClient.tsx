@@ -222,8 +222,6 @@ export default function BookingClient() {
           🔐 Admin
         </a>
       </section>
-    </main>
-  );
-}
-  );
+        </main>
+      );
 }
