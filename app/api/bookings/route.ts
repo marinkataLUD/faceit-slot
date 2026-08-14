@@ -35,6 +35,35 @@ export async function POST(req: Request) {
     }
 
     const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+const currentHour = now.getHours();
+
+const match = hour.match(/^(\d{2}):00/);
+
+if (!match) {
+  return NextResponse.json(
+    { error: "Невалиден час." },
+    { status: 400 }
+  );
+}
+
+const slotHour = Number(match[1]);
+
+// Няма записвания след 10:00
+if (currentHour >= 10) {
+  return NextResponse.json(
+    { error: "Записванията за днес са приключили." },
+    { status: 409 }
+  );
+}
+
+// Слотът се заключва точно когато започне
+if (slotHour <= currentHour) {
+  return NextResponse.json(
+    { error: "Този час вече е започнал или е приключил." },
+    { status: 409 }
+  );
+}
 
     // Проверяваме колко играчи има за този час
     const { count, error: countError } = await supabase
