@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib";
 
+const MAX_PLAYERS_PER_SLOT = 4;
+
+function getToday() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Sofia",
+  }).format(new Date());
+}
+
 export async function GET() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = getToday();
 
   const { data, error } = await supabase
-    .from("faceit_players")
-    .select("id, hour, name, booking_date, created_at")
+    .from("bookings")
+    .select("id,hour,name,booking_date,created_at")
     .eq("booking_date", today)
-    .order("hour", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -34,46 +41,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const today = new Date().toISOString().split("T")[0];
-    const now = new Date();
-const currentHour = now.getHours();
+    const today = getToday();
 
-const match = hour.match(/^(\d{2}):00/);
-
-if (!match) {
-  return NextResponse.json(
-    { error: "Невалиден час." },
-    { status: 400 }
-  );
-}
-
-const slotHour = Number(match[1]);
-
-// Няма записвания след 10:00
-if (currentHour >= 10) {
-  return NextResponse.json(
-    { error: "Записванията за днес са приключили." },
-    { status: 409 }
-  );
-}
-
-// Слотът се заключва точно когато започне
-if (slotHour <= currentHour) {
-  return NextResponse.json(
-    { error: "Този час вече е започнал или е приключил." },
-    { status: 409 }
-  );
-}
-
-    // Проверяваме колко играчи има за този час
+    // Проверяваме колко човека вече са записани за ТОЗИ час
     const { count, error: countError } = await supabase
-      .from("faceit_players")
+      .from("bookings")
       .select("*", {
         count: "exact",
         head: true,
       })
-      .eq("booking_date", today)
-      .eq("hour", hour);
+      .eq("hour", hour)
+      .eq("booking_date", today);
 
     if (countError) {
       return NextResponse.json(
@@ -82,41 +60,25 @@ if (slotHour <= currentHour) {
       );
     }
 
-    // Максимум 4 играчи за една игра
-    if ((count || 0) >= 4) {
+    if ((count || 0) >= MAX_PLAYERS_PER_SLOT) {
       return NextResponse.json(
         { error: "Този час вече е пълен (4/4)." },
         { status: 409 }
       );
     }
 
-    // Проверяваме дали играчът вече е записан за този час
-    const { data: existing } = await supabase
-      .from("faceit_players")
-      .select("id")
-      .eq("booking_date", today)
-      .eq("hour", hour)
-      .eq("name", name.trim())
-      .maybeSingle();
-
-    if (existing) {
-      return NextResponse.json(
-        { error: "Вече си записан за този час." },
-        { status: 409 }
-      );
-    }
-
-    const { error } = await supabase
-      .from("faceit_players")
+    // Записваме новия играч
+    const { error: insertError } = await supabase
+      .from("bookings")
       .insert({
-        booking_date: today,
         hour,
         name: name.trim(),
+        booking_date: today,
       });
 
-    if (error) {
+    if (insertError) {
       return NextResponse.json(
-        { error: error.message },
+        { error: insertError.message },
         { status: 500 }
       );
     }
@@ -124,6 +86,7 @@ if (slotHour <= currentHour) {
     return NextResponse.json({
       ok: true,
     });
+
   } catch {
     return NextResponse.json(
       { error: "Невалидна заявка." },
