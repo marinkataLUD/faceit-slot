@@ -13,9 +13,9 @@ export async function POST() {
   }
 
   const { error } = await supabase
-    .from("faceit_players")
+    .from("bookings")
     .delete()
-    .neq("id", -1);
+    .neq("hour", "__never__");
 
   if (error) {
     return NextResponse.json(
