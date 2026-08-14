@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 
 type Booking = { hour: string; name: string; created_at: string };
-
-const slots = Array.from({ length: 14 }, (_, i) => {
-  const h = 10 + i;
+const slots = Array.from({ length: 11 }, (_, i) => {
+  const h = i;
   const start = `${String(h).padStart(2, "0")}:00`;
-  const next = (h + 1) % 24;
-  return { start, range: `${start} - ${String(next).padStart(2, "0")}:00` };
+  const next = h + 1;
+  return {
+    start,
+    range: `${start} - ${String(next).padStart(2, "0")}:00`,
+  };
 });
 
 export default function BookingClient() {
