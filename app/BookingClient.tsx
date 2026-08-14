@@ -3,18 +3,22 @@
 import { useEffect, useState } from "react";
 
 type Booking = {
+  id: number;
   hour: string;
   name: string;
+  booking_date: string;
   created_at: string;
 };
 
-const slots = Array.from({ length: 11 }, (_, i) => {
+const slots = Array.from({ length: 10 }, (_, i) => {
   const startHour = i;
   const endHour = i + 1;
 
   return {
     startHour,
-    range: `${String(startHour).padStart(2, "0")}:00 - ${String(endHour).padStart(2, "0")}:00`,
+    range: `${String(startHour).padStart(2, "0")}:00 - ${String(
+      endHour
+    ).padStart(2, "0")}:00`,
   };
 });
 
@@ -22,10 +26,11 @@ function isSlotOpen(startHour: number) {
   const now = new Date();
   const hour = now.getHours();
 
-  // Booking period is only from 00:00 until 10:00
+  // Нов ден започва в 00:00
+  // След 10:00 няма повече игри
   if (hour >= 10) return false;
 
-  // A slot closes exactly when its starting hour has passed.
+  // Часът е отворен от началото му до края му
   return hour <= startHour;
 }
 
@@ -34,15 +39,22 @@ export default function BookingClient() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [currentHour, setCurrentHour] = useState(new Date().getHours());
 
   async function load() {
     try {
-      const r = await fetch("/api/bookings", { cache: "no-store" });
+      const r = await fetch("/api/bookings", {
+        cache: "no-store",
+      });
+
       const data = await r.json();
+
+      if (!r.ok) {
+        throw new Error(data.error || "Грешка.");
+      }
+
       setBookings(data.bookings || []);
-    } catch {
-      setError("Неуспешно зареждане на слотовете.");
+    } catch (e: any) {
+      setError(e.message || "Неуспешно зареждане.");
     } finally {
       setLoading(false);
     }
@@ -51,20 +63,23 @@ export default function BookingClient() {
   useEffect(() => {
     load();
 
-    const timer = setInterval(() => {
-      setCurrentHour(new Date().getHours());
-    }, 30000);
-
+    // Обновява списъка на всеки 5 секунди
     const refresh = setInterval(load, 5000);
 
+    // При преминаване към нов час обновява страницата
+    const clock = setInterval(() => {
+      load();
+    }, 30000);
+
     return () => {
-      clearInterval(timer);
       clearInterval(refresh);
+      clearInterval(clock);
     };
   }, []);
 
-  async function book(range: string) {
-    const name = prompt("Въведи име:");
+  async function book(hour: string) {
+    const name = prompt("Въведи името си:");
+
     if (!name?.trim()) return;
 
     setBusy(true);
@@ -77,7 +92,7 @@ export default function BookingClient() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          hour: range,
+          hour,
           name: name.trim(),
         }),
       });
@@ -85,102 +100,201 @@ export default function BookingClient() {
       const data = await r.json();
 
       if (!r.ok) {
-        throw new Error(data.error || "Грешка при записване.");
+        throw new Error(
+          data.error || "Грешка при записване."
+        );
       }
 
       await load();
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "Грешка при записване.");
     } finally {
       setBusy(false);
     }
   }
 
-  const count = bookings.length;
-
   return (
     <main className="page">
       <section className="card">
+
         <h1>FACEIT Slot Booking</h1>
-        <p className="subtitle">Запази си час за игра</p>
+
+        <p className="subtitle">
+          Избери час и се запиши за FACEIT
+        </p>
+
+        {/* PERMANENT SLOT */}
 
         <div className="section">
-          <div className="section-title">🔒 Перманентен слот</div>
+
+          <div className="section-title">
+            🔒 Перманентен слот
+          </div>
 
           <div className="row permanent">
+
             <b>01:00 - 10:00</b>
 
             <div>
               <strong>MagicSlien_</strong>
-              <small>Постоянно запазен слот</small>
+
+              <small>
+                Постоянно запазен слот
+              </small>
             </div>
 
-            <span className="badge">PERMANENT</span>
+            <span className="badge">
+              PERMANENT
+            </span>
+
           </div>
+
         </div>
 
+        {/* NORMAL SLOTS */}
+
         <div className="section">
+
           <div className="section-title">
-            🎮 Свободни часове
+            🎮 FACEIT игри
           </div>
 
           {loading ? (
-            <div className="loading">Зареждане...</div>
+
+            <div className="loading">
+              Зареждане...
+            </div>
+
           ) : (
+
             slots.map((slot) => {
-              const booking = bookings.find(
+
+              const players = bookings.filter(
                 (b) => b.hour === slot.range
               );
 
-              const open = isSlotOpen(slot.startHour);
+              const playerCount = players.length;
+
+              const open = isSlotOpen(
+                slot.startHour
+              );
+
+              const full = playerCount >= 4;
 
               return (
-                <div className="row" key={slot.range}>
-                  <b>{slot.range}</b>
 
-                  <div>
+                <div
+                  className="game-slot"
+                  key={slot.range}
+                >
+
+                  {/* TIME */}
+
+                  <div className="game-header">
+
                     <strong>
-                      {booking
-                        ? booking.name
-                        : !open
-                        ? "Затворен"
-                        : "Свободен"}
+                      🎮 {slot.range}
                     </strong>
 
-                    <small>
-                      {booking
-                        ? "Зает слот"
-                        : !open
-                        ? "Часът е изтекъл"
-                        : "Който пръв го запази, го заема"}
-                    </small>
+                    <span
+                      className={
+                        full
+                          ? "full"
+                          : "players-count"
+                      }
+                    >
+                      {playerCount}/4
+                    </span>
+
                   </div>
 
-                  <button
-                    disabled={
-                      !!booking ||
-                      !open ||
-                      busy ||
-                      count >= 4
-                    }
-                    onClick={() => book(slot.range)}
-                  >
-                    {booking
-                      ? "Заето"
-                      : !open
-                      ? "Затворено"
-                      : count >= 4
-                      ? "FULL"
-                      : "Запази"}
-                  </button>
+                  {/* PLAYERS */}
+
+                  <div className="players">
+
+                    {[0, 1, 2, 3].map((index) => {
+
+                      const player =
+                        players[index];
+
+                      return (
+
+                        <div
+                          className="player"
+                          key={index}
+                        >
+
+                          <span>
+                            {player
+                              ? `👤 ${player.name}`
+                              : `👤 Свободно`}
+                          </span>
+
+                          {!player &&
+                            open &&
+                            !full && (
+
+                              <button
+                                disabled={busy}
+                                onClick={() =>
+                                  book(
+                                    slot.range
+                                  )
+                                }
+                              >
+                                Запази
+                              </button>
+
+                            )}
+
+                          {player && (
+
+                            <span className="taken">
+                              Заето
+                            </span>
+
+                          )}
+
+                        </div>
+
+                      );
+
+                    })}
+
+                  </div>
+
+                  {/* STATUS */}
+
+                  <div className="slot-status">
+
+                    {!open && (
+                      <span className="closed">
+                        🔒 Часът е затворен
+                      </span>
+                    )}
+
+                    {open && full && (
+                      <span className="full">
+                        🔴 FULL 4/4
+                      </span>
+                    )}
+
+                    {open && !full && (
+                      <span className="available">
+                        🟢 {4 - playerCount} свободни места
+                      </span>
+                    )}
+
+                  </div>
+
                 </div>
+
               );
+
             })
+
           )}
 
-          <div className="counter">
-            Заети слотове: {count}/4
-          </div>
         </div>
 
         {error && (
@@ -189,39 +303,14 @@ export default function BookingClient() {
           </div>
         )}
 
-        <div className="section">
-          <div className="section-title">
-            📋 Запазени до тук
-          </div>
-
-          {bookings.length === 0 ? (
-            <div className="empty">
-              Все още няма запазени слотове.
-            </div>
-          ) : (
-            bookings.map((b, i) => (
-              <div className="saved" key={b.hour}>
-                <b>{b.hour.split(" - ")[0]}</b>
-
-                <div>
-                  <strong>{b.name}</strong>
-                  <small>
-                    Запазен слот #{i + 1}
-                  </small>
-                </div>
-
-                <span className="badge">
-                  BOOKED
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-
-        <a className="admin-link" href="/admin">
+        <a
+          className="admin-link"
+          href="/admin"
+        >
           🔐 Admin
         </a>
+
       </section>
-        </main>
-      );
+    </main>
+  );
 }
