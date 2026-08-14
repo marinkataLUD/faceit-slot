@@ -11,12 +11,12 @@
 .time{font-weight:800}.muted{color:#89919d;font-size:13px;margin-top:4px}.permanent{background:#ff8a0015}.orange{color:#ffad45}
 button{border:0;border-radius:9px;padding:10px 15px;font-weight:800;cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}
 .badge{background:#ff8a00;color:#111;padding:4px 8px;border-radius:99px;font-size:10px;font-weight:900;margin-left:6px}
-#counter{padding:15px 20px;color:#9ba3ae;border-top:1px solid #292e37}
-.empty{text-align:center;padding:25px;color:#858d98}
+#counter{padding:15px 20px;color:#9ba3ae;border-top:1px solid #292e37}.empty{text-align:center;padding:25px;color:#858d98}
 .modal{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;padding:20px}.modal.show{display:flex}
 .box{width:min(420px,100%);background:#171a20;border:1px solid #343a45;border-radius:16px;padding:24px}
 label{display:block;font-size:13px;color:#aeb5bf;margin:14px 0 6px}input{width:100%;padding:12px;border-radius:9px;border:1px solid #343a45;background:#0d1014;color:#fff}
 .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.cancel{background:#292e36;color:#fff}
+.admin{display:block;text-align:center;color:#69717c;font-size:12px;margin-top:28px;cursor:pointer}.admin:hover{color:#aeb5bf}
 @media(max-width:600px){.slot{grid-template-columns:1fr}.slot button{width:100%}}
 </style>
 </head>
@@ -39,6 +39,7 @@ label{display:block;font-size:13px;color:#aeb5bf;margin:14px 0 6px}input{width:1
 </div>
 
 <div class="card"><div class="title">📋 Запазени до тук</div><div id="saved"></div></div>
+<div class="admin" onclick="openAdmin()">Admin</div>
 </div>
 
 <div class="modal" id="modal"><div class="box">
@@ -47,21 +48,25 @@ label{display:block;font-size:13px;color:#aeb5bf;margin:14px 0 6px}input{width:1
 <div class="actions"><button class="cancel" onclick="closeModal()">Отказ</button><button onclick="book()">Запази</button></div>
 </div></div>
 
+<div class="modal" id="adminModal"><div class="box">
+<h2>🔐 Admin</h2><div class="muted">Въведи администраторската парола.</div>
+<label>Парола</label><input id="adminPass" type="password" placeholder="••••••••">
+<div class="actions"><button class="cancel" onclick="closeAdmin()">Отказ</button><button onclick="resetSlots()">Reset slots</button></div>
+</div></div>
+
 <script>
-const MAX=4, HOURS=["10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00","23:00"];
+const MAX=4,HOURS=["10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00","23:00"];
 let selected=null;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-
 async function api(url,opt={}){const r=await fetch(url,{headers:{"Content-Type":"application/json"},...opt});const d=await r.json();if(!r.ok)throw new Error(d.error||"Грешка");return d}
 function end(h){return String((+h.slice(0,2)+1)%24).padStart(2,"0")+":00"}
-
 async function render(){
  try{
   const bookings=(await api("/api/bookings")).bookings;
   document.querySelector("#counter b").textContent=bookings.length+"/"+MAX;
-  const slots=document.querySelector("#slots"); slots.innerHTML="";
+  const slots=document.querySelector("#slots");slots.innerHTML="";
   HOURS.forEach(hour=>{
-   const b=bookings.find(x=>x.hour===hour), row=document.createElement("div"); row.className="slot";
+   const b=bookings.find(x=>x.hour===hour),row=document.createElement("div");row.className="slot";
    row.innerHTML=b?`<div class="time">${hour} – ${end(hour)}</div><div><b>${esc(b.name)}</b><div class="muted">Запазен слот</div></div><button disabled>Заето</button>`
    :`<div class="time">${hour} – ${end(hour)}</div><div><b>Свободен</b><div class="muted">Който пръв го запази, го заема</div></div><button ${bookings.length>=MAX?"disabled":""} onclick="openModal('${hour}')">${bookings.length>=MAX?"Няма места":"Запази"}</button>`;
    slots.appendChild(row);
@@ -76,6 +81,16 @@ async function book(){
  const name=document.querySelector("#name").value.trim();if(!name)return alert("Моля, въведи име.");
  try{await api("/api/bookings",{method:"POST",body:JSON.stringify({hour:selected,name})});closeModal();await render()}catch(e){alert(e.message)}
 }
-document.querySelector("#modal").onclick=e=>{if(e.target.id==="modal")closeModal()};render();setInterval(render,10000);
+function openAdmin(){document.querySelector("#adminPass").value="";document.querySelector("#adminModal").classList.add("show");setTimeout(()=>document.querySelector("#adminPass").focus(),30)}
+function closeAdmin(){document.querySelector("#adminModal").classList.remove("show")}
+async function resetSlots(){
+ const pass=document.querySelector("#adminPass").value;
+ if(!pass)return alert("Въведи парола.");
+ if(!confirm("Сигурен ли си? Това ще изтрие днешните 4 записани слота."))return;
+ try{await api("/api/reset",{method:"POST",body:JSON.stringify({password:pass})});closeAdmin();await render();alert("Слотовете са нулирани.")}catch(e){alert(e.message)}
+}
+document.querySelector("#modal").onclick=e=>{if(e.target.id==="modal")closeModal()};
+document.querySelector("#adminModal").onclick=e=>{if(e.target.id==="adminModal")closeAdmin()};
+render();setInterval(render,10000);
 </script>
 </body></html>
