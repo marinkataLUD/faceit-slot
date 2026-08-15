@@ -10,6 +10,11 @@ type Booking = {
   created_at: string;
 };
 
+type SlotControl = {
+  hour: string;
+  is_open: boolean | null;
+};
+
 const slots = Array.from({ length: 10 }, (_, i) => {
   const startHour = i;
   const endHour = i + 1;
@@ -22,39 +27,74 @@ const slots = Array.from({ length: 10 }, (_, i) => {
   };
 });
 
-function isSlotOpen(startHour: number) {
-  const now = new Date();
-  const hour = now.getHours();
+function getBulgariaHour() {
+  const hour = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Sofia",
+    hour: "numeric",
+    hourCycle: "h23",
+  }).format(new Date());
 
-  // Нов ден започва в 00:00
-  // След 10:00 няма повече игри
-  if (hour >= 10) return false;
+  return Number(hour);
+}
 
-  // Часът е отворен от началото му до края му
-  return hour <= startHour;
+function isSlotOpenAutomatically(startHour: number) {
+  const currentHour = getBulgariaHour();
+
+  // След 10:00 всичко е заключено
+  if (currentHour >= 10) {
+    return false;
+  }
+
+  // Само текущият час е отворен
+  return currentHour === startHour;
 }
 
 export default function BookingClient() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [slotControls, setSlotControls] = useState<SlotControl[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function load() {
     try {
-      const r = await fetch("/api/bookings", {
-        cache: "no-store",
-      });
+      const [bookingsResponse, slotsResponse] =
+        await Promise.all([
+          fetch("/api/bookings", {
+            cache: "no-store",
+          }),
 
-      const data = await r.json();
+          fetch("/api/admin/slots", {
+            cache: "no-store",
+          }),
+        ]);
 
-      if (!r.ok) {
-        throw new Error(data.error || "Грешка.");
+      const bookingsData = await bookingsResponse.json();
+
+      if (!bookingsResponse.ok) {
+        throw new Error(
+          bookingsData.error || "Грешка."
+        );
       }
 
-      setBookings(data.bookings || []);
+      setBookings(bookingsData.bookings || []);
+
+      // Ако API-то е достъпно само за Admin,
+      // нормалната booking страница няма да има достъп.
+      // Затова приемаме, че при 401 използваме автоматичната логика.
+      if (slotsResponse.ok) {
+        const slotsData = await slotsResponse.json();
+
+        setSlotControls(
+          slotsData.slots || []
+        );
+      } else {
+        setSlotControls([]);
+      }
     } catch (e: any) {
-      setError(e.message || "Неуспешно зареждане.");
+      setError(
+        e.message || "Неуспешно зареждане."
+      );
     } finally {
       setLoading(false);
     }
@@ -63,17 +103,12 @@ export default function BookingClient() {
   useEffect(() => {
     load();
 
-    // Обновява списъка на всеки 5 секунди
+    // Обновява bookings и статуса на слотовете
+    // на всеки 5 секунди.
     const refresh = setInterval(load, 5000);
-
-    // При преминаване към нов час обновява страницата
-    const clock = setInterval(() => {
-      load();
-    }, 30000);
 
     return () => {
       clearInterval(refresh);
-      clearInterval(clock);
     };
   }, []);
 
@@ -101,16 +136,40 @@ export default function BookingClient() {
 
       if (!r.ok) {
         throw new Error(
-          data.error || "Грешка при записване."
+          data.error ||
+            "Грешка при записване."
         );
       }
 
       await load();
     } catch (e: any) {
-      setError(e.message || "Грешка при записване.");
+      setError(
+        e.message ||
+          "Грешка при записване."
+      );
     } finally {
       setBusy(false);
     }
+  }
+
+  function getSlotOpen(
+    startHour: number,
+    range: string
+  ) {
+    const control = slotControls.find(
+      (slot) => slot.hour === range
+    );
+
+    // Няма ръчна настройка →
+    // използваме автоматичната логика.
+    if (!control || control.is_open === null) {
+      return isSlotOpenAutomatically(
+        startHour
+      );
+    }
+
+    // Admin е задал ръчен статус.
+    return control.is_open;
   }
 
   return (
@@ -136,7 +195,9 @@ export default function BookingClient() {
             <b>01:00 - 10:00</b>
 
             <div>
-              <strong>MagicSlien_</strong>
+              <strong>
+                MagicSlien_
+              </strong>
 
               <small>
                 Постоянно запазен слот
@@ -169,17 +230,24 @@ export default function BookingClient() {
 
             slots.map((slot) => {
 
-              const players = bookings.filter(
-                (b) => b.hour === slot.range
-              );
+              const players =
+                bookings.filter(
+                  (b) =>
+                    b.hour ===
+                    slot.range
+                );
 
-              const playerCount = players.length;
+              const playerCount =
+                players.length;
 
-              const open = isSlotOpen(
-                slot.startHour
-              );
+              const open =
+                getSlotOpen(
+                  slot.startHour,
+                  slot.range
+                );
 
-              const full = playerCount >= 4;
+              const full =
+                playerCount >= 4;
 
               return (
 
@@ -212,54 +280,55 @@ export default function BookingClient() {
 
                   <div className="players">
 
-                    {[0, 1, 2, 3].map((index) => {
+                    {[0, 1, 2, 3].map(
+                      (index) => {
 
-                      const player =
-                        players[index];
+                        const player =
+                          players[index];
 
-                      return (
+                        return (
 
-                        <div
-                          className="player"
-                          key={index}
-                        >
+                          <div
+                            className="player"
+                            key={index}
+                          >
 
-                          <span>
-                            {player
-                              ? `👤 ${player.name}`
-                              : `👤 Свободно`}
-                          </span>
+                            <span>
+                              {player
+                                ? `👤 ${player.name}`
+                                : `👤 Свободно`}
+                            </span>
 
-                          {!player &&
-                            open &&
-                            !full && (
+                            {!player &&
+                              open &&
+                              !full && (
 
-                              <button
-                                disabled={busy}
-                                onClick={() =>
-                                  book(
-                                    slot.range
-                                  )
-                                }
-                              >
-                                Запази
-                              </button>
+                                <button
+                                  disabled={busy}
+                                  onClick={() =>
+                                    book(
+                                      slot.range
+                                    )
+                                  }
+                                >
+                                  Запази
+                                </button>
+
+                              )}
+
+                            {player && (
+
+                              <span className="taken">
+                                Заето
+                              </span>
 
                             )}
 
-                          {player && (
+                          </div>
 
-                            <span className="taken">
-                              Заето
-                            </span>
-
-                          )}
-
-                        </div>
-
-                      );
-
-                    })}
+                        );
+                      }
+                    )}
 
                   </div>
 
@@ -281,7 +350,9 @@ export default function BookingClient() {
 
                     {open && !full && (
                       <span className="available">
-                        🟢 {4 - playerCount} свободни места
+                        🟢{" "}
+                        {4 - playerCount}{" "}
+                        свободни места
                       </span>
                     )}
 
