@@ -10,6 +10,14 @@ type Booking = {
   created_at: string;
 };
 
+type PremiumBooking = {
+  id: number;
+  hour: string;
+  name: string;
+  booking_date: string;
+  created_at: string;
+};
+
 type SlotControl = {
   hour: string;
   is_open: boolean;
@@ -23,71 +31,93 @@ type PremiumSlotControl = {
 
 export default function AdminClient() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [premiumBookings, setPremiumBookings] = useState<
+    PremiumBooking[]
+  >([]);
+
   const [slots, setSlots] = useState<SlotControl[]>([]);
   const [premiumSlots, setPremiumSlots] = useState<
     PremiumSlotControl[]
   >([]);
+
   const [msg, setMsg] = useState("");
 
   async function load() {
-    const [
-      bookingsResponse,
-      slotsResponse,
-      premiumSlotsResponse,
-    ] = await Promise.all([
-      fetch("/api/bookings", {
-        cache: "no-store",
-      }),
+    try {
+      const [
+        bookingsResponse,
+        slotsResponse,
+        premiumSlotsResponse,
+        premiumBookingsResponse,
+      ] = await Promise.all([
+        fetch("/api/bookings", {
+          cache: "no-store",
+        }),
 
-      fetch("/api/admin/slots", {
-        cache: "no-store",
-      }),
+        fetch("/api/admin/slots", {
+          cache: "no-store",
+        }),
 
-      fetch("/api/admin/premium-slots", {
-        cache: "no-store",
-      }),
-    ]);
+        fetch("/api/admin/premium-slots", {
+          cache: "no-store",
+        }),
 
-    const bookingsData =
-      await bookingsResponse.json();
+        fetch("/api/premium", {
+          cache: "no-store",
+        }),
+      ]);
 
-    const slotsData =
-      await slotsResponse.json();
+      const bookingsData =
+        await bookingsResponse.json();
 
-    const premiumSlotsData =
-      await premiumSlotsResponse.json();
+      const slotsData =
+        await slotsResponse.json();
 
-    setBookings(
-      bookingsData.bookings || []
-    );
+      const premiumSlotsData =
+        await premiumSlotsResponse.json();
 
-    setSlots(
-      slotsData.slots || []
-    );
+      const premiumBookingsData =
+        await premiumBookingsResponse.json();
 
-    setPremiumSlots(
-      premiumSlotsData.slots || []
-    );
+      setBookings(
+        bookingsData.bookings || []
+      );
+
+      setSlots(
+        slotsData.slots || []
+      );
+
+      setPremiumSlots(
+        premiumSlotsData.slots || []
+      );
+
+      setPremiumBookings(
+        premiumBookingsData.bookings || []
+      );
+    } catch {
+      setMsg("Грешка при зареждане.");
+    }
   }
 
   useEffect(() => {
     load();
 
-    const interval = setInterval(
-      load,
-      5000
-    );
+    const interval = setInterval(load, 5000);
 
-    return () =>
-      clearInterval(interval);
+    return () => clearInterval(interval);
   }, []);
+
+  // =========================
+  // NORMAL DELETE
+  // =========================
 
   async function remove(
     id: number,
     name: string
   ) {
-    if (!confirm(`Премахни ${name}?`))
+    if (!confirm(`Премахни ${name}?`)) {
       return;
+    }
 
     const r = await fetch(
       "/api/admin/delete",
@@ -115,6 +145,53 @@ export default function AdminClient() {
 
     load();
   }
+
+  // =========================
+  // PREMIUM DELETE
+  // =========================
+
+  async function removePremium(
+    id: number,
+    name: string
+  ) {
+    if (
+      !confirm(
+        `Премахни Premium играча ${name}?`
+      )
+    ) {
+      return;
+    }
+
+    const r = await fetch(
+      "/api/admin/premium-delete",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({ id }),
+      }
+    );
+
+    const data = await r.json();
+
+    if (!r.ok) {
+      return setMsg(
+        data.error || "Грешка."
+      );
+    }
+
+    setMsg(
+      `Premium играчът ${name} беше премахнат.`
+    );
+
+    load();
+  }
+
+  // =========================
+  // RESET NORMAL
+  // =========================
 
   async function reset() {
     if (
@@ -146,6 +223,45 @@ export default function AdminClient() {
 
     load();
   }
+
+  // =========================
+  // RESET PREMIUM
+  // =========================
+
+  async function resetPremium() {
+    if (
+      !confirm(
+        "Сигурен ли си? Ще бъдат премахнати ВСИЧКИ Premium играчи."
+      )
+    ) {
+      return;
+    }
+
+    const r = await fetch(
+      "/api/admin/premium-reset",
+      {
+        method: "POST",
+      }
+    );
+
+    const data = await r.json();
+
+    if (!r.ok) {
+      return setMsg(
+        data.error || "Грешка."
+      );
+    }
+
+    setMsg(
+      "Всички Premium играчи са изчистени."
+    );
+
+    load();
+  }
+
+  // =========================
+  // NORMAL SLOT TOGGLE
+  // =========================
 
   async function toggleSlot(
     hour: string,
@@ -182,6 +298,10 @@ export default function AdminClient() {
 
     load();
   }
+
+  // =========================
+  // PREMIUM SLOT TOGGLE
+  // =========================
 
   async function togglePremiumSlot(
     hour: string,
@@ -260,16 +380,12 @@ export default function AdminClient() {
           </div>
 
           {slots.map((slot) => (
-
             <div
               className="saved"
               key={slot.hour}
             >
-
               <div>
-                <b>
-                  {slot.hour}
-                </b>
+                <b>{slot.hour}</b>
               </div>
 
               <strong>
@@ -295,9 +411,7 @@ export default function AdminClient() {
                   ? "Заключи"
                   : "Отключи"}
               </button>
-
             </div>
-
           ))}
 
         </div>
@@ -312,16 +426,12 @@ export default function AdminClient() {
 
           {premiumSlots.map(
             (slot) => (
-
               <div
                 className="saved"
                 key={slot.hour}
               >
-
                 <div>
-                  <b>
-                    {slot.hour}
-                  </b>
+                  <b>{slot.hour}</b>
                 </div>
 
                 <strong>
@@ -347,15 +457,13 @@ export default function AdminClient() {
                     ? "Заключи"
                     : "Отключи"}
                 </button>
-
               </div>
-
             )
           )}
 
         </div>
 
-        {/* RESET */}
+        {/* NORMAL RESET */}
 
         <div className="danger-box">
 
@@ -365,10 +473,8 @@ export default function AdminClient() {
 
           <p>
             Изчиства всички записани
-            играчи.
-            <b>
-              {" "}MagicSlien_
-            </b>{" "}
+            стандартни играчи.
+            <b> MagicSlien_</b>{" "}
             остава permanent.
           </p>
 
@@ -381,7 +487,7 @@ export default function AdminClient() {
 
         </div>
 
-        {/* PLAYERS */}
+        {/* NORMAL PLAYERS */}
 
         <div className="section">
 
@@ -410,7 +516,6 @@ export default function AdminClient() {
                   );
 
                 return (
-
                   <div
                     className="game-slot"
                     key={hour}
@@ -432,7 +537,6 @@ export default function AdminClient() {
 
                       {players.map(
                         (player) => (
-
                           <div
                             className="player"
                             key={player.id}
@@ -456,7 +560,6 @@ export default function AdminClient() {
                             </button>
 
                           </div>
-
                         )
                       )}
 
@@ -466,31 +569,104 @@ export default function AdminClient() {
                           players.length,
                       }).map(
                         (_, index) => (
-
                           <div
                             className="player"
                             key={`empty-${index}`}
                           >
-
                             <span>
                               👤 Свободно
                             </span>
-
                           </div>
-
                         )
                       )}
 
                     </div>
 
                   </div>
-
                 );
-
               }
             )
 
           )}
+
+        </div>
+
+        {/* PREMIUM PLAYERS */}
+
+        <div className="section">
+
+          <div className="section-title">
+            👑 Premium играчи (
+            {premiumBookings.length}
+            )
+          </div>
+
+          {premiumBookings.length === 0 ? (
+
+            <div className="empty">
+              Няма записани Premium играчи.
+            </div>
+
+          ) : (
+
+            premiumBookings.map(
+              (booking) => (
+
+                <div
+                  className="saved"
+                  key={booking.id}
+                >
+
+                  <div>
+                    <b>
+                      {booking.hour}
+                    </b>
+                  </div>
+
+                  <strong>
+                    👤 {booking.name}
+                  </strong>
+
+                  <button
+                    className="remove"
+                    onClick={() =>
+                      removePremium(
+                        booking.id,
+                        booking.name
+                      )
+                    }
+                  >
+                    Премахни
+                  </button>
+
+                </div>
+
+              )
+            )
+
+          )}
+
+        </div>
+
+        {/* PREMIUM RESET */}
+
+        <div className="danger-box">
+
+          <h2>
+            👑 Reset Premium Players
+          </h2>
+
+          <p>
+            Изчиства всички записани
+            Premium играчи.
+          </p>
+
+          <button
+            className="danger"
+            onClick={resetPremium}
+          >
+            RESET PREMIUM
+          </button>
 
         </div>
 
@@ -506,9 +682,7 @@ export default function AdminClient() {
             ← Към слотовете
           </a>
 
-          <button
-            onClick={logout}
-          >
+          <button onClick={logout}>
             Изход
           </button>
 
