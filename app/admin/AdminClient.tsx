@@ -15,54 +15,104 @@ type SlotControl = {
   is_open: boolean;
 };
 
+type PremiumSlotControl = {
+  id: number;
+  hour: string;
+  is_open: boolean;
+};
+
 export default function AdminClient() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [slots, setSlots] = useState<SlotControl[]>([]);
+  const [premiumSlots, setPremiumSlots] = useState<
+    PremiumSlotControl[]
+  >([]);
   const [msg, setMsg] = useState("");
 
   async function load() {
-    const [bookingsResponse, slotsResponse] = await Promise.all([
+    const [
+      bookingsResponse,
+      slotsResponse,
+      premiumSlotsResponse,
+    ] = await Promise.all([
       fetch("/api/bookings", {
         cache: "no-store",
       }),
+
       fetch("/api/admin/slots", {
+        cache: "no-store",
+      }),
+
+      fetch("/api/admin/premium-slots", {
         cache: "no-store",
       }),
     ]);
 
-    const bookingsData = await bookingsResponse.json();
-    const slotsData = await slotsResponse.json();
+    const bookingsData =
+      await bookingsResponse.json();
 
-    setBookings(bookingsData.bookings || []);
-    setSlots(slotsData.slots || []);
+    const slotsData =
+      await slotsResponse.json();
+
+    const premiumSlotsData =
+      await premiumSlotsResponse.json();
+
+    setBookings(
+      bookingsData.bookings || []
+    );
+
+    setSlots(
+      slotsData.slots || []
+    );
+
+    setPremiumSlots(
+      premiumSlotsData.slots || []
+    );
   }
 
   useEffect(() => {
     load();
 
-    const interval = setInterval(load, 5000);
+    const interval = setInterval(
+      load,
+      5000
+    );
 
-    return () => clearInterval(interval);
+    return () =>
+      clearInterval(interval);
   }, []);
 
-  async function remove(id: number, name: string) {
-    if (!confirm(`Премахни ${name}?`)) return;
+  async function remove(
+    id: number,
+    name: string
+  ) {
+    if (!confirm(`Премахни ${name}?`))
+      return;
 
-    const r = await fetch("/api/admin/delete", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ id }),
-    });
+    const r = await fetch(
+      "/api/admin/delete",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({ id }),
+      }
+    );
 
     const data = await r.json();
 
     if (!r.ok) {
-      return setMsg(data.error || "Грешка.");
+      return setMsg(
+        data.error || "Грешка."
+      );
     }
 
-    setMsg(`${name} беше премахнат.`);
+    setMsg(
+      `${name} беше премахнат.`
+    );
+
     load();
   }
 
@@ -75,36 +125,53 @@ export default function AdminClient() {
       return;
     }
 
-    const r = await fetch("/api/admin/reset", {
-      method: "POST",
-    });
+    const r = await fetch(
+      "/api/admin/reset",
+      {
+        method: "POST",
+      }
+    );
 
     const data = await r.json();
 
     if (!r.ok) {
-      return setMsg(data.error || "Грешка.");
+      return setMsg(
+        data.error || "Грешка."
+      );
     }
 
-    setMsg("Всички временни играчи са изчистени.");
+    setMsg(
+      "Всички временни играчи са изчистени."
+    );
+
     load();
   }
 
-  async function toggleSlot(hour: string, isOpen: boolean) {
-    const r = await fetch("/api/admin/slots", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        hour,
-        is_open: !isOpen,
-      }),
-    });
+  async function toggleSlot(
+    hour: string,
+    isOpen: boolean
+  ) {
+    const r = await fetch(
+      "/api/admin/slots",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          hour,
+          is_open: !isOpen,
+        }),
+      }
+    );
 
     const data = await r.json();
 
     if (!r.ok) {
-      return setMsg(data.error || "Грешка.");
+      return setMsg(
+        data.error || "Грешка."
+      );
     }
 
     setMsg(
@@ -116,29 +183,75 @@ export default function AdminClient() {
     load();
   }
 
+  async function togglePremiumSlot(
+    hour: string,
+    isOpen: boolean
+  ) {
+    const r = await fetch(
+      "/api/admin/premium-slots",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          hour,
+          is_open: !isOpen,
+        }),
+      }
+    );
+
+    const data = await r.json();
+
+    if (!r.ok) {
+      return setMsg(
+        data.error || "Грешка."
+      );
+    }
+
+    setMsg(
+      !isOpen
+        ? `Premium ${hour} е отключен.`
+        : `Premium ${hour} е заключен.`
+    );
+
+    load();
+  }
+
   async function logout() {
-    await fetch("/api/admin/logout", {
-      method: "POST",
-    });
+    await fetch(
+      "/api/admin/logout",
+      {
+        method: "POST",
+      }
+    );
 
     location.href = "/";
   }
 
   const hours = Array.from(
-    new Set(bookings.map((b) => b.hour))
+    new Set(
+      bookings.map(
+        (b) => b.hour
+      )
+    )
   );
 
   return (
     <main className="page">
       <section className="card admin">
 
-        <h1>FACEIT Admin Panel</h1>
+        <h1>
+          FACEIT Admin Panel
+        </h1>
 
         <p className="subtitle">
-          Управление на FACEIT играчите и слотовете
+          Управление на FACEIT играчите
+          и слотовете
         </p>
 
-        {/* SLOT CONTROL */}
+        {/* NORMAL SLOT CONTROL */}
 
         <div className="section">
 
@@ -154,7 +267,9 @@ export default function AdminClient() {
             >
 
               <div>
-                <b>{slot.hour}</b>
+                <b>
+                  {slot.hour}
+                </b>
               </div>
 
               <strong>
@@ -167,7 +282,7 @@ export default function AdminClient() {
                 className={
                   slot.is_open
                     ? "remove"
-                    : "row button"
+                    : "admin-toggle"
                 }
                 onClick={() =>
                   toggleSlot(
@@ -187,15 +302,74 @@ export default function AdminClient() {
 
         </div>
 
+        {/* PREMIUM SLOT CONTROL */}
+
+        <div className="section">
+
+          <div className="section-title">
+            👑 FACEIT Premium with Kera4a
+          </div>
+
+          {premiumSlots.map(
+            (slot) => (
+
+              <div
+                className="saved"
+                key={slot.hour}
+              >
+
+                <div>
+                  <b>
+                    {slot.hour}
+                  </b>
+                </div>
+
+                <strong>
+                  {slot.is_open
+                    ? "🟢 Отключен"
+                    : "🔒 Заключен"}
+                </strong>
+
+                <button
+                  className={
+                    slot.is_open
+                      ? "remove"
+                      : "admin-toggle"
+                  }
+                  onClick={() =>
+                    togglePremiumSlot(
+                      slot.hour,
+                      slot.is_open
+                    )
+                  }
+                >
+                  {slot.is_open
+                    ? "Заключи"
+                    : "Отключи"}
+                </button>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
         {/* RESET */}
 
         <div className="danger-box">
 
-          <h2>🔄 Reset All Players</h2>
+          <h2>
+            🔄 Reset All Players
+          </h2>
 
           <p>
-            Изчиства всички записани играчи.
-            <b> MagicSlien_</b> остава permanent.
+            Изчиства всички записани
+            играчи.
+            <b>
+              {" "}MagicSlien_
+            </b>{" "}
+            остава permanent.
           </p>
 
           <button
@@ -212,7 +386,9 @@ export default function AdminClient() {
         <div className="section">
 
           <div className="section-title">
-            📋 Записани играчи ({bookings.length})
+            📋 Записани играчи (
+            {bookings.length}
+            )
           </div>
 
           {bookings.length === 0 ? (
@@ -223,84 +399,96 @@ export default function AdminClient() {
 
           ) : (
 
-            hours.map((hour) => {
+            hours.map(
+              (hour) => {
 
-              const players = bookings.filter(
-                (b) => b.hour === hour
-              );
+                const players =
+                  bookings.filter(
+                    (b) =>
+                      b.hour ===
+                      hour
+                  );
 
-              return (
+                return (
 
-                <div
-                  className="game-slot"
-                  key={hour}
-                >
+                  <div
+                    className="game-slot"
+                    key={hour}
+                  >
 
-                  <div className="game-header">
+                    <div className="game-header">
 
-                    <strong>
-                      🎮 {hour}
-                    </strong>
+                      <strong>
+                        🎮 {hour}
+                      </strong>
 
-                    <span className="players-count">
-                      {players.length}/4
-                    </span>
+                      <span className="players-count">
+                        {players.length}/4
+                      </span>
+
+                    </div>
+
+                    <div className="players">
+
+                      {players.map(
+                        (player) => (
+
+                          <div
+                            className="player"
+                            key={player.id}
+                          >
+
+                            <span>
+                              👤{" "}
+                              {player.name}
+                            </span>
+
+                            <button
+                              className="remove"
+                              onClick={() =>
+                                remove(
+                                  player.id,
+                                  player.name
+                                )
+                              }
+                            >
+                              Премахни
+                            </button>
+
+                          </div>
+
+                        )
+                      )}
+
+                      {Array.from({
+                        length:
+                          4 -
+                          players.length,
+                      }).map(
+                        (_, index) => (
+
+                          <div
+                            className="player"
+                            key={`empty-${index}`}
+                          >
+
+                            <span>
+                              👤 Свободно
+                            </span>
+
+                          </div>
+
+                        )
+                      )}
+
+                    </div>
 
                   </div>
 
-                  <div className="players">
+                );
 
-                    {players.map((player) => (
-
-                      <div
-                        className="player"
-                        key={player.id}
-                      >
-
-                        <span>
-                          👤 {player.name}
-                        </span>
-
-                        <button
-                          className="remove"
-                          onClick={() =>
-                            remove(
-                              player.id,
-                              player.name
-                            )
-                          }
-                        >
-                          Премахни
-                        </button>
-
-                      </div>
-
-                    ))}
-
-                    {Array.from({
-                      length: 4 - players.length,
-                    }).map((_, index) => (
-
-                      <div
-                        className="player"
-                        key={`empty-${index}`}
-                      >
-
-                        <span>
-                          👤 Свободно
-                        </span>
-
-                      </div>
-
-                    ))}
-
-                  </div>
-
-                </div>
-
-              );
-
-            })
+              }
+            )
 
           )}
 
@@ -318,7 +506,9 @@ export default function AdminClient() {
             ← Към слотовете
           </a>
 
-          <button onClick={logout}>
+          <button
+            onClick={logout}
+          >
             Изход
           </button>
 
