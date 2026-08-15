@@ -10,17 +10,31 @@ type Booking = {
   created_at: string;
 };
 
+type SlotControl = {
+  hour: string;
+  is_open: boolean;
+};
+
 export default function AdminClient() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [slots, setSlots] = useState<SlotControl[]>([]);
   const [msg, setMsg] = useState("");
 
   async function load() {
-    const r = await fetch("/api/bookings", {
-      cache: "no-store",
-    });
+    const [bookingsResponse, slotsResponse] = await Promise.all([
+      fetch("/api/bookings", {
+        cache: "no-store",
+      }),
+      fetch("/api/admin/slots", {
+        cache: "no-store",
+      }),
+    ]);
 
-    const data = await r.json();
-    setBookings(data.bookings || []);
+    const bookingsData = await bookingsResponse.json();
+    const slotsData = await slotsResponse.json();
+
+    setBookings(bookingsData.bookings || []);
+    setSlots(slotsData.slots || []);
   }
 
   useEffect(() => {
@@ -75,6 +89,33 @@ export default function AdminClient() {
     load();
   }
 
+  async function toggleSlot(hour: string, isOpen: boolean) {
+    const r = await fetch("/api/admin/slots", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        hour,
+        is_open: !isOpen,
+      }),
+    });
+
+    const data = await r.json();
+
+    if (!r.ok) {
+      return setMsg(data.error || "Грешка.");
+    }
+
+    setMsg(
+      !isOpen
+        ? `${hour} е отключен.`
+        : `${hour} е заключен.`
+    );
+
+    load();
+  }
+
   async function logout() {
     await fetch("/api/admin/logout", {
       method: "POST",
@@ -94,8 +135,57 @@ export default function AdminClient() {
         <h1>FACEIT Admin Panel</h1>
 
         <p className="subtitle">
-          Управление на FACEIT играчите
+          Управление на FACEIT играчите и слотовете
         </p>
+
+        {/* SLOT CONTROL */}
+
+        <div className="section">
+
+          <div className="section-title">
+            🔐 Управление на слотовете
+          </div>
+
+          {slots.map((slot) => (
+
+            <div
+              className="saved"
+              key={slot.hour}
+            >
+
+              <div>
+                <b>{slot.hour}</b>
+              </div>
+
+              <strong>
+                {slot.is_open
+                  ? "🟢 Отключен"
+                  : "🔒 Заключен"}
+              </strong>
+
+              <button
+                className={
+                  slot.is_open
+                    ? "remove"
+                    : "row button"
+                }
+                onClick={() =>
+                  toggleSlot(
+                    slot.hour,
+                    slot.is_open
+                  )
+                }
+              >
+                {slot.is_open
+                  ? "Заключи"
+                  : "Отключи"}
+              </button>
+
+            </div>
+
+          ))}
+
+        </div>
 
         {/* RESET */}
 
@@ -195,9 +285,11 @@ export default function AdminClient() {
                         className="player"
                         key={`empty-${index}`}
                       >
+
                         <span>
                           👤 Свободно
                         </span>
+
                       </div>
 
                     ))}
