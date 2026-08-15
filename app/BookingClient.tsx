@@ -79,9 +79,6 @@ export default function BookingClient() {
 
       setBookings(bookingsData.bookings || []);
 
-      // Ако API-то е достъпно само за Admin,
-      // нормалната booking страница няма да има достъп.
-      // Затова приемаме, че при 401 използваме автоматичната логика.
       if (slotsResponse.ok) {
         const slotsData = await slotsResponse.json();
 
@@ -103,8 +100,6 @@ export default function BookingClient() {
   useEffect(() => {
     load();
 
-    // Обновява bookings и статуса на слотовете
-    // на всеки 5 секунди.
     const refresh = setInterval(load, 5000);
 
     return () => {
@@ -160,15 +155,12 @@ export default function BookingClient() {
       (slot) => slot.hour === range
     );
 
-    // Няма ръчна настройка →
-    // използваме автоматичната логика.
     if (!control || control.is_open === null) {
       return isSlotOpenAutomatically(
         startHour
       );
     }
 
-    // Admin е задал ръчен статус.
     return control.is_open;
   }
 
@@ -181,6 +173,15 @@ export default function BookingClient() {
         <p className="subtitle">
           Избери час и се запиши за FACEIT
         </p>
+
+        {/* PREMIUM BUTTON */}
+
+        <a
+          className="premium-link"
+          href="/premium"
+        >
+          👑 Искаш да играеш премка с Керача?
+        </a>
 
         {/* PERMANENT SLOT */}
 
