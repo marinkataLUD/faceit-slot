@@ -10,6 +10,12 @@ type PremiumBooking = {
   created_at: string;
 };
 
+type PremiumSlotControl = {
+  id: number;
+  hour: string;
+  is_open: boolean;
+};
+
 const slots = Array.from({ length: 10 }, (_, i) => {
   const startHour = i;
   const endHour = i + 1;
@@ -45,25 +51,58 @@ export default function PremiumClient() {
     PremiumBooking[]
   >([]);
 
+  const [slotControls, setSlotControls] = useState<
+    PremiumSlotControl[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function load() {
     try {
-      const r = await fetch("/api/premium", {
-        cache: "no-store",
-      });
+      const [
+        bookingsResponse,
+        slotsResponse,
+      ] = await Promise.all([
+        fetch("/api/premium", {
+          cache: "no-store",
+        }),
 
-      const data = await r.json();
+        fetch("/api/admin/premium-slots", {
+          cache: "no-store",
+        }),
+      ]);
 
-      if (!r.ok) {
+      const bookingsData =
+        await bookingsResponse.json();
+
+      if (!bookingsResponse.ok) {
         throw new Error(
-          data.error || "Грешка."
+          bookingsData.error || "Грешка."
         );
       }
 
-      setBookings(data.bookings || []);
+      setBookings(
+        bookingsData.bookings || []
+      );
+
+      /*
+       * Premium slot controls.
+       *
+       * Ако API-то не е достъпно,
+       * използваме автоматичната логика.
+       */
+      if (slotsResponse.ok) {
+        const slotsData =
+          await slotsResponse.json();
+
+        setSlotControls(
+          slotsData.slots || []
+        );
+      } else {
+        setSlotControls([]);
+      }
     } catch (e: any) {
       setError(
         e.message ||
@@ -130,6 +169,33 @@ export default function PremiumClient() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function getSlotOpen(
+    startHour: number,
+    range: string
+  ) {
+    const control =
+      slotControls.find(
+        (slot) =>
+          slot.hour === range
+      );
+
+    /*
+     * Ако Admin има настройка за този слот,
+     * тя има предимство.
+     */
+    if (control) {
+      return control.is_open;
+    }
+
+    /*
+     * Ако няма настройка,
+     * използваме автоматичния часовник.
+     */
+    return isSlotOpenAutomatically(
+      startHour
+    );
   }
 
   return (
@@ -208,8 +274,9 @@ export default function PremiumClient() {
                 );
 
               const open =
-                isSlotOpenAutomatically(
-                  slot.startHour
+                getSlotOpen(
+                  slot.startHour,
+                  slot.range
                 );
 
               return (
