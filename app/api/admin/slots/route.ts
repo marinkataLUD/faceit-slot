@@ -3,15 +3,6 @@ import { cookies } from "next/headers";
 import { supabase, ADMIN_COOKIE } from "@/lib";
 
 export async function GET() {
-  const cookieStore = await cookies();
-
-  if (cookieStore.get(ADMIN_COOKIE)?.value !== "1") {
-    return NextResponse.json(
-      { error: "Нямате достъп." },
-      { status: 401 }
-    );
-  }
-
   const { data, error } = await supabase
     .from("slot_controls")
     .select("hour,is_open")
